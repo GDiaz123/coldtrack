@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum PlanCode {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum SensorStatus {
+  NORMAL
+  WARNING
+  CRITICAL
+  OFFLINE
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPERVISOR
+  TECHNICIAN
+  AUDITOR
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+model Plan {
+  code              PlanCode @id
+  name              String
+  maxSensors        Int
+  priceMonthlyUsd   Int
+  companies         Company[]
+}
+
+model Company {
+  id           String        @id @default(cuid())
+  name         String
+  ruc          String        @unique
+  status       CompanyStatus @default(TRIAL)
+  plan         PlanCode      @default(STARTER)
+  planRef      Plan          @relation(fields: [plan], references: [code])
+  contactEmail String
+  createdAt    DateTime      @default(now())
+  users        User[]
+  sensors      Sensor[]
+  events       SystemEvent[]
+}
+
+model User {
+  id           String     @id @default(cuid())
+  companyId    String?
+  company      Company?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         UserRole   @default(SUPERVISOR)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+}
+
+model Sensor {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  location     String
+  productType  String
+  minTemp      Float
+  maxTemp      Float
+  registeredAt DateTime        @default(now())
+  active       Boolean         @default(true)
+  reading      SensorReading?
+  events       SystemEvent[]
+
+  @@unique([companyId, code])
+}
+
+model SensorReading {
+  id              String       @id @default(cuid())
+  sensorId        String       @unique
+  sensor          Sensor       @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  temperature     Float
+  humidity        Int
+  battery         Float
+  signal          Int
+  status          SensorStatus
+  trend           Json
+  lastSeenSeconds Int
+  updatedAt       DateTime     @updatedAt
+}
+
+model SystemEvent {
+  id        String       @id @default(cuid())
+  companyId String
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sensorId  String?
+  sensor    Sensor?      @relation(fields: [sensorId], references: [id], onDelete: SetNull)
+  severity  SensorStatus
+  title     String
+  detail    String
+  createdAt DateTime     @default(now())
+
+  @@index([companyId, createdAt(sort: Desc)])
+}

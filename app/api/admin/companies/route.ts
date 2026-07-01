@@ -1,0 +1,37 @@
+import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
+import { logger } from "@/lib/server/logger";
+import type { NextRequest } from "next/server";
+
+export async function GET() {
+  const repo = await getColdtrackRepository();
+  const companies = await repo.listCompanies();
+  return Response.json(companies);
+}
+
+export async function POST(request: NextRequest) {
+  const repo = await getColdtrackRepository();
+
+  try {
+    const body = await request.json();
+    const { name, ruc, status, plan, contactEmail } = body;
+
+    if (!name || !ruc || !contactEmail) {
+      return Response.json({ error: "MISSING_FIELDS" }, { status: 400 });
+    }
+
+    const company = await repo.createCompany({
+      name,
+      ruc,
+      status: status ?? "TRIAL",
+      plan: plan ?? "STARTER",
+      contactEmail,
+    });
+
+    logger.info("company_created", { companyId: company.id, name });
+    return Response.json(company, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+    logger.error("company_create_failed", { error: message });
+    return Response.json({ error: message }, { status: 400 });
+  }
+}

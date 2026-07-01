@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: coldtrack
+      POSTGRES_PASSWORD: coldtrack_secret
+      POSTGRES_DB: coldtrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coldtrack -d coldtrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://coldtrack:coldtrack_secret@db:5432/coldtrack
+      JWT_SECRET: ${JWT_SECRET:-coldtrack-change-in-production}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      SENSOR_PROVIDER: simulated
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: always
+
+volumes:
+  postgres_data:

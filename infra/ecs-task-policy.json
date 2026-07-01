@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
+      "Resource": [
+        "arn:aws:s3:::coldtrack-reports",
+        "arn:aws:s3:::coldtrack-reports/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["rds-db:connect"],
+      "Resource": "arn:aws:rds-db:us-east-1:TU_ACCOUNT_ID:dbuser:TU_DB_RESOURCE_ID/postgres"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "*"
+    }
+  ]
+}
