@@ -1,7 +1,6 @@
 import { getJwtSecret } from "@/lib/server/auth";
 import { getDatabaseSetupHint, isDatabaseAvailable } from "@/lib/server/database-health";
 import { isDatabaseConfigured } from "@/lib/server/rds-connection";
-import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
 import { registerOrganization, toAppUser } from "@/lib/server/user-service";
 import { cookies } from "next/headers";

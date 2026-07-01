@@ -1,5 +1,6 @@
 import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
+import { requireAuth } from "@/lib/server/request-auth";
 import type { NextRequest } from "next/server";
 
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
+  const auth = await requireAuth({ companyId });
+  if (!auth.ok) return auth.response;
+
   const repo = await getColdtrackRepository();
 
   if (!(await repo.getCompany(companyId))) {
@@ -22,6 +26,9 @@ export async function POST(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
+  const auth = await requireAuth({ companyId, companyRoles: ["ADMIN", "SUPERVISOR", "TECHNICIAN"] });
+  if (!auth.ok) return auth.response;
+
   const repo = await getColdtrackRepository();
 
   if (!(await repo.getCompany(companyId))) {

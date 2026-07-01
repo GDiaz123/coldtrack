@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { useCompanyDashboard } from "@/lib/hooks/use-company-dashboard";
 import { useAuth } from "@/lib/hooks/use-auth";
-import type { Sensor, AppUser } from "@/lib/domain/coldtrack";
+import type { AppUser } from "@/lib/domain/coldtrack";
 
 type Status = "Normal" | "Vigilancia" | "Critico";
 type View =
@@ -138,15 +138,17 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
   // Fetch company users when view is "Usuarios"
   useEffect(() => {
     if (view === "Usuarios" && !authLoading && authUser) {
-      setUsersLoading(true);
-      fetch(`/api/admin/users?companyId=${companyId}`)
-        .then((res) => {
-          if (res.ok) return res.json();
-          throw new Error("Failed to load users");
-        })
-        .then((data) => setCompanyUsers(data))
-        .catch((err) => console.error("Error loading users:", err))
-        .finally(() => setUsersLoading(false));
+      queueMicrotask(() => {
+        setUsersLoading(true);
+        fetch(`/api/admin/users?companyId=${companyId}`)
+          .then((res) => {
+            if (res.ok) return res.json();
+            throw new Error("Failed to load users");
+          })
+          .then((data) => setCompanyUsers(data))
+          .catch((err) => console.error("Error loading users:", err))
+          .finally(() => setUsersLoading(false));
+      });
     }
   }, [view, companyId, authLoading, authUser]);
 

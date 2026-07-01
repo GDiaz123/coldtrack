@@ -29,7 +29,7 @@ import type { Company, AppUser, PlanCode, CompanyStatus, UserRole } from "@/lib/
 type AdminView = "Dashboard" | "Empresas" | "Usuarios" | "Planes" | "Eventos" | "Configuración";
 
 export function AdminDashboard() {
-  const { user: authUser, loading: authLoading, logout } = useAuth("SUPER_ADMIN");
+  const { loading: authLoading, logout } = useAuth("SUPER_ADMIN");
   const {
     data,
     loading,

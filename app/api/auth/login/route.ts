@@ -17,9 +17,18 @@ export async function POST(request: NextRequest) {
     }
 
     let user;
-    const useDatabase = isDatabaseConfigured() && (await isDatabaseAvailable());
+    const databaseConfigured = isDatabaseConfigured();
+    const databaseAvailable = databaseConfigured ? await isDatabaseAvailable() : false;
 
-    if (useDatabase) {
+    if (databaseConfigured && !databaseAvailable) {
+      return Response.json({ error: "DATABASE_UNAVAILABLE" }, { status: 503 });
+    }
+
+    if (process.env.NODE_ENV === "production" && !databaseConfigured) {
+      return Response.json({ error: "DATABASE_REQUIRED" }, { status: 503 });
+    }
+
+    if (databaseConfigured) {
       const dbUser = await findUserByEmail(email);
       if (!dbUser) {
         return Response.json({ error: "INVALID_CREDENTIALS" }, { status: 401 });

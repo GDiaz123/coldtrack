@@ -1,14 +1,21 @@
 import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
+import { requireAuth } from "@/lib/server/request-auth";
 import type { NextRequest } from "next/server";
 
 export async function GET() {
+  const auth = await requireAuth({ roles: ["SUPER_ADMIN"] });
+  if (!auth.ok) return auth.response;
+
   const repo = await getColdtrackRepository();
   const companies = await repo.listCompanies();
   return Response.json(companies);
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth({ roles: ["SUPER_ADMIN"] });
+  if (!auth.ok) return auth.response;
+
   const repo = await getColdtrackRepository();
 
   try {

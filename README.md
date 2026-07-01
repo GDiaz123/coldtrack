@@ -53,6 +53,7 @@ graph TD
 
 - **[Informe de Proyecto Final](docs/INFORME-PROYECTO-FINAL.md)** — Documento completo para entregar al curso
 - **[Configuración AWS RDS + IAM + S3 + ECS](docs/AWS-RDS-ECS-CONFIG.md)** — Conectar tu cluster RDS y bucket S3
+- **[Despliegue simple EC2 + RDS + S3 + IAM](docs/AWS-EC2-RDS-S3-IAM.md)** — Ruta directa para subir la app a EC2 con Docker
 
 ---
 

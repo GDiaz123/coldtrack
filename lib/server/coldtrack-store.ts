@@ -124,29 +124,6 @@ const sensors: Sensor[] = [];
 /*  Helper functions                                                   */
 /* ------------------------------------------------------------------ */
 
-function sensor(
-  companyId: string,
-  code: string,
-  name: string,
-  location: string,
-  productType: string,
-  minTemp: number,
-  maxTemp: number
-): Sensor {
-  return {
-    id: `${companyId}-${code.toLowerCase()}`,
-    companyId,
-    code,
-    name,
-    location,
-    productType,
-    minTemp,
-    maxTemp,
-    registeredAt: "2026-06-01T10:00:00.000Z",
-    active: true,
-  };
-}
-
 function initialReading(s: Sensor): SensorReading {
   const midpoint = (s.minTemp + s.maxTemp) / 2;
   const temperature = roundMetric(midpoint + stableNoise(s.id, 1.2));

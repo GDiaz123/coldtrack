@@ -1,6 +1,6 @@
 import { Signer } from "@aws-sdk/rds-signer";
 import pg from "pg";
-import { awsConfig } from "@/lib/server/aws-config";
+import { awsConfig, isRdsIamConfigured } from "@/lib/server/aws-config";
 
 const TOKEN_TTL_MS = 12 * 60 * 1000;
 
@@ -18,7 +18,24 @@ export async function getRdsAuthToken() {
 }
 
 export async function getPgPoolConfig(): Promise<pg.PoolConfig> {
-  if (awsConfig.rdsIamAuth) {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (connectionString) {
+    const needsSsl =
+      process.env.RDS_SSL === "true" ||
+      connectionString.includes("rds.amazonaws.com") ||
+      connectionString.includes("sslmode=require");
+
+    return {
+      connectionString,
+      ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
+    };
+  }
+
+  if (isRdsIamConfigured()) {
     const token = await getRdsAuthToken();
     return {
       host: awsConfig.rdsHost,
@@ -33,23 +50,7 @@ export async function getPgPoolConfig(): Promise<pg.PoolConfig> {
     };
   }
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL or RDS_IAM_AUTH is required");
-  }
-
-  const needsSsl =
-    process.env.RDS_SSL === "true" ||
-    connectionString.includes("rds.amazonaws.com") ||
-    connectionString.includes("sslmode=require");
-
-  return {
-    connectionString,
-    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
-    max: 10,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 15_000,
-  };
+  throw new Error("DATABASE_URL or complete RDS IAM configuration is required");
 }
 
 export async function getPgPool() {
@@ -80,5 +81,9 @@ export async function resetPgPool() {
 }
 
 export function isDatabaseConfigured() {
-  return Boolean(process.env.DATABASE_URL) || awsConfig.rdsIamAuth;
+  if (process.env.DATABASE_DISABLED === "true") {
+    return false;
+  }
+
+  return Boolean(process.env.DATABASE_URL) || isRdsIamConfigured();
 }

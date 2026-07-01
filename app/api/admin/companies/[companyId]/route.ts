@@ -1,11 +1,15 @@
 import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
+import { requireAuth } from "@/lib/server/request-auth";
 import type { NextRequest } from "next/server";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
+  const auth = await requireAuth({ roles: ["SUPER_ADMIN"] });
+  if (!auth.ok) return auth.response;
+
   const { companyId } = await params;
   const repo = await getColdtrackRepository();
 
@@ -24,6 +28,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ companyId: string }> }
 ) {
+  const auth = await requireAuth({ roles: ["SUPER_ADMIN"] });
+  if (!auth.ok) return auth.response;
+
   const { companyId } = await params;
   const repo = await getColdtrackRepository();
   const deleted = await repo.deleteCompany(companyId);

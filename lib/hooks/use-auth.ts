@@ -35,7 +35,7 @@ export function useAuth(requiredRole?: string, requiredCompanyId?: string) {
             return;
           }
         }
-      } catch (err) {
+      } catch {
         if (active) {
           setUser(null);
           router.replace("/");

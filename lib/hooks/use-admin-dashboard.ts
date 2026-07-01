@@ -23,7 +23,9 @@ export function useAdminDashboard() {
   }, []);
 
   useEffect(() => {
-    fetchOverview();
+    queueMicrotask(() => {
+      void fetchOverview();
+    });
 
     const eventSource = new EventSource(`/api/admin/stream`);
 

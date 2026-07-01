@@ -45,31 +45,30 @@ export default function LoginPage() {
     }
   };
 
-  const useCred = (demoEmail: string) => {
+  const fillDemoCredentials = (demoEmail: string) => {
     setEmail(demoEmail);
     setPassword("password123");
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900 flex flex-col justify-center items-center px-4 relative">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-sky-50/80 blur-[80px] pointer-events-none" />
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef8ff_100%)] text-gray-900 flex flex-col justify-center items-center px-4 relative">
 
       <div className="w-full max-w-md z-10">
         <div className="flex flex-col items-center mb-8">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-white border border-gray-200 text-sky-600 font-bold shadow-sm">
+          <div className="flex size-13 items-center justify-center rounded-xl bg-white border border-sky-100 text-sky-600 font-bold shadow-sm">
             <Snowflake className="size-6" />
           </div>
-          <h1 className="mt-3 text-xl font-bold tracking-tight text-gray-900">COLDTRACK</h1>
-          <p className="text-[10px] font-semibold tracking-widest text-gray-500 uppercase">
+          <h1 className="mt-3 text-2xl font-extrabold tracking-normal text-gray-950">COLDTRACK</h1>
+          <p className="text-xs font-bold tracking-wide text-sky-700 uppercase">
             Control de Cadena de Frío
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-sm font-bold text-gray-800 mb-5">Ingreso al Sistema</h2>
+        <div className="bg-white border border-sky-100 rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-extrabold text-gray-900 mb-5">Ingreso al Sistema</h2>
 
           {error && (
-            <div className="mb-4 p-3 text-xs bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
+            <div className="mb-4 p-3 text-sm bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
               <AlertCircle className="size-4 shrink-0" />
               <span>{error === "INVALID_CREDENTIALS" ? "Email o contraseña incorrectos" : error}</span>
             </div>
@@ -77,15 +76,15 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wide text-gray-500 mb-1.5">
                 Correo Electrónico
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-2.5 size-4 text-gray-400" />
+                <Mail className="absolute left-3 top-3 size-4 text-gray-400" />
                 <input
                   type="email"
                   required
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3 py-2.5 text-xs text-gray-900 focus:border-sky-400 focus:ring-1 focus:ring-sky-100 outline-none transition"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3 py-3 text-sm text-gray-900 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 outline-none transition"
                   placeholder="nombre@organizacion.pe"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -94,15 +93,15 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wide text-gray-500 mb-1.5">
                 Contraseña
               </label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-2.5 size-4 text-gray-400" />
+                <KeyRound className="absolute left-3 top-3 size-4 text-gray-400" />
                 <input
                   type="password"
                   required
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3 py-2.5 text-xs text-gray-900 focus:border-sky-400 focus:ring-1 focus:ring-sky-100 outline-none transition"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3 py-3 text-sm text-gray-900 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 outline-none transition"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -113,7 +112,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-6 w-full py-2.5 rounded-xl text-xs font-bold bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 disabled:text-gray-500 transition flex items-center justify-center gap-2"
+              className="mt-6 w-full py-3 rounded-xl text-sm font-extrabold bg-sky-600 text-white hover:bg-sky-700 disabled:bg-gray-300 disabled:text-gray-500 transition flex items-center justify-center gap-2 shadow-sm shadow-sky-100"
             >
               {loading ? (
                 <>
@@ -127,7 +126,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-5 pt-4 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500">
+            <p className="text-sm text-gray-500">
               ¿No tiene cuenta?{" "}
               <Link href="/register" className="font-semibold text-sky-600 hover:text-sky-700">
                 Registrarse
@@ -138,7 +137,7 @@ export default function LoginPage() {
           <div className="mt-4 border-t border-gray-100 pt-4">
             <button
               onClick={() => setShowDemoCreds(!showDemoCreds)}
-              className="flex items-center justify-between w-full text-gray-500 hover:text-gray-800 text-xs font-medium transition"
+              className="flex items-center justify-between w-full text-gray-500 hover:text-gray-800 text-sm font-bold transition"
             >
               <span className="flex items-center gap-1.5">
                 <Info className="size-3.5" />
@@ -157,8 +156,8 @@ export default function LoginPage() {
                 ].map((cred) => (
                   <button
                     key={cred.email}
-                    onClick={() => useCred(cred.email)}
-                    className="w-full text-left p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 text-[10px] transition block"
+                    onClick={() => fillDemoCredentials(cred.email)}
+                    className="w-full text-left p-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 text-xs transition block"
                   >
                     <p className="font-bold text-gray-700">{cred.label}</p>
                     <p className="text-gray-500 mt-0.5">{cred.email} (pass: password123)</p>

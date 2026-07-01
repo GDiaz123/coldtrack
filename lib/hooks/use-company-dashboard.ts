@@ -23,8 +23,10 @@ export function useCompanyDashboard(companyId: string) {
   }, [companyId]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchDashboard();
+    queueMicrotask(() => {
+      setLoading(true);
+      void fetchDashboard();
+    });
 
     const eventSource = new EventSource(`/api/company/${companyId}/stream`);
 

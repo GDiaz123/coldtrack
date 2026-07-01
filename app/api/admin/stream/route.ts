@@ -1,9 +1,13 @@
 import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
+import { requireAuth } from "@/lib/server/request-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const auth = await requireAuth({ roles: ["SUPER_ADMIN"] });
+  if (!auth.ok) return auth.response;
+
   const repo = await getColdtrackRepository();
 
   logger.info("admin_sse_stream_opened");
