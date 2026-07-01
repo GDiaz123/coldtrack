@@ -23,11 +23,21 @@ export function useAdminDashboard() {
   }, []);
 
   useEffect(() => {
+    let polling: ReturnType<typeof setInterval> | null = null;
+    let eventSource: EventSource | null = null;
+
+    const startPolling = () => {
+      if (polling) return;
+      polling = setInterval(() => {
+        void fetchOverview();
+      }, 5000);
+    };
+
     queueMicrotask(() => {
       void fetchOverview();
     });
 
-    const eventSource = new EventSource(`/api/admin/stream`);
+    eventSource = new EventSource(`/api/admin/stream`);
 
     eventSource.onmessage = (event) => {
       try {
@@ -37,17 +47,20 @@ export function useAdminDashboard() {
           setError(null);
           setLoading(false);
         }
-      } catch (err) {
-        console.error("SSE parsing error:", err);
+      } catch {
+        startPolling();
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error("SSE admin stream error:", err);
+    eventSource.onerror = () => {
+      eventSource?.close();
+      eventSource = null;
+      startPolling();
     };
 
     return () => {
-      eventSource.close();
+      eventSource?.close();
+      if (polling) clearInterval(polling);
     };
   }, [fetchOverview]);
 

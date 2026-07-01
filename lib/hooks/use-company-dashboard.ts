@@ -23,12 +23,22 @@ export function useCompanyDashboard(companyId: string) {
   }, [companyId]);
 
   useEffect(() => {
+    let polling: ReturnType<typeof setInterval> | null = null;
+    let eventSource: EventSource | null = null;
+
+    const startPolling = () => {
+      if (polling) return;
+      polling = setInterval(() => {
+        void fetchDashboard();
+      }, 5000);
+    };
+
     queueMicrotask(() => {
       setLoading(true);
       void fetchDashboard();
     });
 
-    const eventSource = new EventSource(`/api/company/${companyId}/stream`);
+    eventSource = new EventSource(`/api/company/${companyId}/stream`);
 
     eventSource.onmessage = (event) => {
       try {
@@ -38,17 +48,20 @@ export function useCompanyDashboard(companyId: string) {
           setError(null);
           setLoading(false);
         }
-      } catch (err) {
-        console.error("SSE parsing error:", err);
+      } catch {
+        startPolling();
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error("SSE connection error:", err);
+    eventSource.onerror = () => {
+      eventSource?.close();
+      eventSource = null;
+      startPolling();
     };
 
     return () => {
-      eventSource.close();
+      eventSource?.close();
+      if (polling) clearInterval(polling);
     };
   }, [companyId, fetchDashboard]);
 
