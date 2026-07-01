@@ -1,6 +1,7 @@
 import { getJwtSecret } from "@/lib/server/auth";
 import { getDatabaseSetupHint, isDatabaseAvailable } from "@/lib/server/database-health";
-import { isDatabaseConfigured } from "@/lib/server/rds-connection";
+import { isDatabaseConfigured, isDatabaseDisabled } from "@/lib/server/rds-connection";
+import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
 import { registerOrganization, toAppUser } from "@/lib/server/user-service";
 import { cookies } from "next/headers";
@@ -8,28 +9,6 @@ import jwt from "jsonwebtoken";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
-  if (!isDatabaseConfigured()) {
-    return Response.json(
-      {
-        error: "DATABASE_REQUIRED",
-        message: "Configure DATABASE_URL en .env para habilitar el registro.",
-        hint: getDatabaseSetupHint(),
-      },
-      { status: 503 }
-    );
-  }
-
-  if (!(await isDatabaseAvailable())) {
-    return Response.json(
-      {
-        error: "DATABASE_UNAVAILABLE",
-        message: "No se pudo conectar a PostgreSQL.",
-        hint: getDatabaseSetupHint(),
-      },
-      { status: 503 }
-    );
-  }
-
   try {
     const body = await request.json();
     const { name, email, password, companyName, ruc, contactEmail } = body;
@@ -42,14 +21,57 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "WEAK_PASSWORD", message: "La contraseña debe tener al menos 8 caracteres." }, { status: 400 });
     }
 
-    const user = await registerOrganization({
-      name,
-      email,
-      password,
-      companyName,
-      ruc,
-      contactEmail,
-    });
+    let user;
+
+    if (isDatabaseDisabled()) {
+      const repo = await getColdtrackRepository();
+      const company = await repo.createCompany({
+        name: companyName.trim(),
+        ruc: ruc.trim(),
+        status: "TRIAL",
+        plan: "STARTER",
+        contactEmail: contactEmail.trim().toLowerCase(),
+      });
+
+      user = await repo.createUser({
+        companyId: company.id,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        role: "ADMIN",
+        status: "ACTIVE",
+      });
+    } else {
+      if (!isDatabaseConfigured()) {
+        return Response.json(
+          {
+            error: "DATABASE_REQUIRED",
+            message: "Configure DATABASE_URL en .env para habilitar el registro.",
+            hint: getDatabaseSetupHint(),
+          },
+          { status: 503 }
+        );
+      }
+
+      if (!(await isDatabaseAvailable())) {
+        return Response.json(
+          {
+            error: "DATABASE_UNAVAILABLE",
+            message: "No se pudo conectar a PostgreSQL.",
+            hint: getDatabaseSetupHint(),
+          },
+          { status: 503 }
+        );
+      }
+
+      user = await registerOrganization({
+        name,
+        email,
+        password,
+        companyName,
+        ruc,
+        contactEmail,
+      });
+    }
 
     const token = jwt.sign(
       {

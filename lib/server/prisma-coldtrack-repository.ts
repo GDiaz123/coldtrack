@@ -13,6 +13,7 @@ import {
   statusForTemperature,
 } from "@/lib/domain/coldtrack";
 import { getPrisma } from "@/lib/server/db";
+import { ensureDefaultPlans } from "@/lib/server/default-plans";
 import type { Prisma } from "@/app/generated/prisma/client";
 
 type SimulationState = {
@@ -338,6 +339,8 @@ export class PrismaColdtrackRepository {
   }
 
   async createCompany(input: Omit<Company, "id" | "createdAt">) {
+    await ensureDefaultPlans(await getPrisma());
+
     const row = await (await getPrisma()).company.create({
       data: {
         name: input.name,

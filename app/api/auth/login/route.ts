@@ -1,6 +1,6 @@
 import { getJwtSecret, verifyPassword } from "@/lib/server/auth";
 import { isDatabaseAvailable } from "@/lib/server/database-health";
-import { isDatabaseConfigured } from "@/lib/server/rds-connection";
+import { isDatabaseConfigured, isDatabaseDisabled } from "@/lib/server/rds-connection";
 import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
 import { findUserByEmail, toAppUser } from "@/lib/server/user-service";
@@ -11,8 +11,9 @@ import type { NextRequest } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return Response.json({ error: "MISSING_FIELDS" }, { status: 400 });
     }
 
@@ -24,12 +25,12 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "DATABASE_UNAVAILABLE" }, { status: 503 });
     }
 
-    if (process.env.NODE_ENV === "production" && !databaseConfigured) {
+    if (process.env.NODE_ENV === "production" && !databaseConfigured && !isDatabaseDisabled()) {
       return Response.json({ error: "DATABASE_REQUIRED" }, { status: 503 });
     }
 
     if (databaseConfigured) {
-      const dbUser = await findUserByEmail(email);
+      const dbUser = await findUserByEmail(normalizedEmail);
       if (!dbUser) {
         return Response.json({ error: "INVALID_CREDENTIALS" }, { status: 401 });
       }
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     } else {
       const repo = await getColdtrackRepository();
       const memoryUser = (await repo.listUsers()).find(
-        (u) => u.email.toLowerCase() === email.toLowerCase()
+        (u) => u.email.toLowerCase() === normalizedEmail
       );
 
       if (!memoryUser || password !== "password123") {

@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/server/db";
 import { hashPassword } from "@/lib/server/auth";
+import { ensureDefaultPlans } from "@/lib/server/default-plans";
 import type { UserRole } from "@/app/generated/prisma/client";
 
 export type RegisterInput = {
@@ -29,6 +30,8 @@ export async function registerOrganization(input: RegisterInput) {
   const passwordHash = await hashPassword(input.password);
 
   const result = await prisma.$transaction(async (tx) => {
+    await ensureDefaultPlans(tx as unknown as Parameters<typeof ensureDefaultPlans>[0]);
+
     const company = await tx.company.create({
       data: {
         name: input.companyName.trim(),

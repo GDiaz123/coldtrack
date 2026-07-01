@@ -80,10 +80,16 @@ export async function resetPgPool() {
   poolCreatedAt = 0;
 }
 
-export function isDatabaseConfigured() {
+export function isDatabaseDisabled() {
   if (process.env.DATABASE_DISABLED === "true") {
-    return false;
+    return true;
   }
+
+  return false;
+}
+
+export function isDatabaseConfigured() {
+  if (isDatabaseDisabled()) return false;
 
   return Boolean(process.env.DATABASE_URL) || isRdsIamConfigured();
 }
