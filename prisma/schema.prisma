@@ -45,6 +45,7 @@ model Plan {
   name              String
   maxSensors        Int
   priceMonthlyUsd   Int
+  currency          String   @default("USD")
   companies         Company[]
 }
 
@@ -56,6 +57,8 @@ model Company {
   plan         PlanCode      @default(STARTER)
   planRef      Plan          @relation(fields: [plan], references: [code])
   contactEmail String
+  alertPhone   String?
+  registrationKey String?    @unique
   createdAt    DateTime      @default(now())
   users        User[]
   sensors      Sensor[]

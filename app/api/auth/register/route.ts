@@ -3,7 +3,7 @@ import { getDatabaseSetupHint, isDatabaseAvailable } from "@/lib/server/database
 import { isDatabaseConfigured, isDatabaseDisabled } from "@/lib/server/rds-connection";
 import { getColdtrackRepository } from "@/lib/server/coldtrack-store";
 import { logger } from "@/lib/server/logger";
-import { registerOrganization, toAppUser } from "@/lib/server/user-service";
+import { registerOrganization, registerWorker, toAppUser } from "@/lib/server/user-service";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import type { NextRequest } from "next/server";
@@ -11,9 +11,18 @@ import type { NextRequest } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, password, companyName, ruc, contactEmail } = body;
+    const { name, email, password, companyName, ruc, contactEmail, registrationKey } = body;
+    const mode = body.mode === "worker" ? "worker" : "company";
 
-    if (!name || !email || !password || !companyName || !ruc || !contactEmail) {
+    if (!name || !email || !password) {
+      return Response.json({ error: "MISSING_FIELDS" }, { status: 400 });
+    }
+
+    if (mode === "company" && (!companyName || !ruc || !contactEmail)) {
+      return Response.json({ error: "MISSING_FIELDS" }, { status: 400 });
+    }
+
+    if (mode === "worker" && !registrationKey) {
       return Response.json({ error: "MISSING_FIELDS" }, { status: 400 });
     }
 
@@ -22,47 +31,81 @@ export async function POST(request: NextRequest) {
     }
 
     let user;
+    const databaseConfigured = isDatabaseConfigured();
+    const databaseAvailable = databaseConfigured ? await isDatabaseAvailable() : false;
+    const shouldUseDatabase = databaseConfigured && databaseAvailable;
 
-    if (isDatabaseDisabled()) {
-      const repo = await getColdtrackRepository();
-      const company = await repo.createCompany({
-        name: companyName.trim(),
-        ruc: ruc.trim(),
-        status: "TRIAL",
-        plan: "STARTER",
-        contactEmail: contactEmail.trim().toLowerCase(),
+    if (databaseConfigured && !databaseAvailable) {
+      logger.warn("register_database_unavailable_memory_fallback", {
+        environment: process.env.NODE_ENV ?? "development",
       });
+    }
 
-      user = await repo.createUser({
-        companyId: company.id,
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        role: "ADMIN",
-        status: "ACTIVE",
+    if (
+      process.env.NODE_ENV === "production" &&
+      !shouldUseDatabase &&
+      !isDatabaseDisabled() &&
+      process.env.ALLOW_MEMORY_FALLBACK !== "true"
+    ) {
+      return Response.json(
+        {
+          error: "DATABASE_REQUIRED",
+          message: "Configure una base PostgreSQL remota o use DATABASE_DISABLED=true para modo demo.",
+          hint: getDatabaseSetupHint(),
+        },
+        { status: 503 }
+      );
+    }
+
+    if (!shouldUseDatabase) {
+      const repo = await getColdtrackRepository();
+      if (mode === "worker") {
+        const companies = await repo.listCompanies();
+        const company = companies.find(
+          (item) => item.registrationKey?.toUpperCase() === String(registrationKey).trim().toUpperCase()
+        );
+        if (!company || company.status === "SUSPENDED") {
+          return Response.json(
+            { error: "INVALID_REGISTRATION_KEY", message: "La clave de empresa no es valida." },
+            { status: 403 }
+          );
+        }
+
+        user = await repo.createUser({
+          companyId: company.id,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          role: "SUPERVISOR",
+          status: "ACTIVE",
+        });
+      } else {
+        const company = await repo.createCompany({
+          name: companyName.trim(),
+          ruc: ruc.trim(),
+          status: "TRIAL",
+          plan: "STARTER",
+          contactEmail: contactEmail.trim().toLowerCase(),
+          alertPhone: null,
+        });
+
+        user = await repo.createUser({
+          companyId: company.id,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          role: "ADMIN",
+          status: "ACTIVE",
+        });
+      }
+    } else if (mode === "worker") {
+      user = await registerWorker({
+        name,
+        email,
+        password,
+        registrationKey,
       });
     } else {
-      if (!isDatabaseConfigured()) {
-        return Response.json(
-          {
-            error: "DATABASE_REQUIRED",
-            message: "Configure DATABASE_URL en .env para habilitar el registro.",
-            hint: getDatabaseSetupHint(),
-          },
-          { status: 503 }
-        );
-      }
-
-      if (!(await isDatabaseAvailable())) {
-        return Response.json(
-          {
-            error: "DATABASE_UNAVAILABLE",
-            message: "No se pudo conectar a PostgreSQL.",
-            hint: getDatabaseSetupHint(),
-          },
-          { status: 503 }
-        );
-      }
-
       user = await registerOrganization({
         name,
         email,
@@ -105,6 +148,13 @@ export async function POST(request: NextRequest) {
     }
     if (message === "RUC_ALREADY_EXISTS") {
       return Response.json({ error: message, detail: "Este RUC ya está registrado." }, { status: 409 });
+    }
+
+    if (message === "INVALID_REGISTRATION_KEY") {
+      return Response.json(
+        { error: message, detail: "La clave de empresa no es valida o la empresa esta suspendida." },
+        { status: 403 }
+      );
     }
 
     return Response.json({ error: message }, { status: 400 });

@@ -10,6 +10,8 @@ export type Company = {
   status: CompanyStatus;
   plan: PlanCode;
   contactEmail: string;
+  alertPhone: string | null;
+  registrationKey: string | null;
   createdAt: string;
 };
 
@@ -27,6 +29,8 @@ export type Plan = {
   name: string;
   maxSensors: number;
   priceMonthlyUsd: number;
+  currency: "PEN" | "USD";
+  priceLabel: string;
 };
 
 export type Sensor = {

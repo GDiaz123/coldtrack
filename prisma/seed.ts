@@ -7,9 +7,8 @@ async function main() {
   const passwordHash = await hashPassword("password123");
 
   const plans = [
-    { code: "STARTER" as const, name: "Starter", maxSensors: 12, priceMonthlyUsd: 99 },
-    { code: "PRO" as const, name: "Professional", maxSensors: 60, priceMonthlyUsd: 299 },
-    { code: "ENTERPRISE" as const, name: "Enterprise", maxSensors: 300, priceMonthlyUsd: 899 },
+    { code: "STARTER" as const, name: "Basico", maxSensors: 8, priceMonthlyUsd: 1200, currency: "PEN" },
+    { code: "PRO" as const, name: "Premium", maxSensors: 40, priceMonthlyUsd: 1600, currency: "USD" },
   ];
 
   for (const plan of plans) {
@@ -28,6 +27,8 @@ async function main() {
       status: "ACTIVE" as const,
       plan: "PRO" as const,
       contactEmail: "operaciones@santaaurora.pe",
+      alertPhone: "+51900111222",
+      registrationKey: "AURORA-2026",
       createdAt: new Date("2026-02-12T14:20:00.000Z"),
     },
     {
@@ -37,6 +38,8 @@ async function main() {
       status: "TRIAL" as const,
       plan: "STARTER" as const,
       contactEmail: "calidad@bionorte.pe",
+      alertPhone: "+51900333444",
+      registrationKey: "BIONORTE-2026",
       createdAt: new Date("2026-05-04T09:15:00.000Z"),
     },
     {
@@ -44,8 +47,10 @@ async function main() {
       name: "Banco de Sangre VitalRed",
       ruc: "20490244718",
       status: "ACTIVE" as const,
-      plan: "ENTERPRISE" as const,
+      plan: "PRO" as const,
       contactEmail: "monitoreo@vitalred.pe",
+      alertPhone: "+51900555666",
+      registrationKey: "VITALRED-2026",
       createdAt: new Date("2025-11-18T12:40:00.000Z"),
     },
   ];

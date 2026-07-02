@@ -68,6 +68,8 @@ function mapCompany(row: {
   status: string;
   plan: string;
   contactEmail: string;
+  alertPhone?: string | null;
+  registrationKey?: string | null;
   createdAt: Date;
 }): Company {
   return {
@@ -77,8 +79,26 @@ function mapCompany(row: {
     status: row.status as Company["status"],
     plan: row.plan as Company["plan"],
     contactEmail: row.contactEmail,
+    alertPhone: row.alertPhone ?? null,
+    registrationKey: row.registrationKey ?? null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function generateRegistrationKey(name: string) {
+  const prefix =
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(0, 8)
+      .toUpperCase() || "EMPRESA";
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `${prefix}-${suffix}`;
+}
+
+function priceLabel(price: number, currency?: string | null) {
+  return currency === "PEN" ? `S/ ${price}` : `$${price}`;
 }
 
 function mapUser(row: {
@@ -278,6 +298,8 @@ export class PrismaColdtrackRepository {
         name: p.name,
         maxSensors: p.maxSensors,
         priceMonthlyUsd: p.priceMonthlyUsd,
+        currency: (p as { currency?: "PEN" | "USD" }).currency ?? "USD",
+        priceLabel: priceLabel(p.priceMonthlyUsd, (p as { currency?: string }).currency),
       })) as Plan[],
       events: this.events.slice(0, 20),
       stats: {
@@ -338,7 +360,7 @@ export class PrismaColdtrackRepository {
     return row ? mapCompany(row) : null;
   }
 
-  async createCompany(input: Omit<Company, "id" | "createdAt">) {
+  async createCompany(input: Omit<Company, "id" | "createdAt" | "registrationKey"> & { registrationKey?: string | null }) {
     await ensureDefaultPlans(await getPrisma());
 
     const row = await (await getPrisma()).company.create({
@@ -348,6 +370,8 @@ export class PrismaColdtrackRepository {
         status: input.status,
         plan: input.plan,
         contactEmail: input.contactEmail,
+        alertPhone: input.alertPhone,
+        registrationKey: input.registrationKey ?? generateRegistrationKey(input.name),
       },
     });
     return mapCompany(row);
@@ -436,10 +460,16 @@ export class PrismaColdtrackRepository {
   }
 
   async createSensor(input: Omit<Sensor, "id" | "registeredAt" | "active">) {
-    const company = await (await getPrisma()).company.findUnique({ where: { id: input.companyId } });
+    const prisma = await getPrisma();
+    const company = await prisma.company.findUnique({ where: { id: input.companyId } });
     if (!company) throw new Error("COMPANY_NOT_FOUND");
+    const plan = await prisma.plan.findUnique({ where: { code: company.plan } });
+    const currentSensors = await prisma.sensor.count({ where: { companyId: input.companyId, active: true } });
+    if (plan && currentSensors >= plan.maxSensors) {
+      throw new Error("PLAN_SENSOR_LIMIT_REACHED");
+    }
 
-    const row = await (await getPrisma()).sensor.create({
+    const row = await prisma.sensor.create({
       data: {
         companyId: input.companyId,
         code: input.code,

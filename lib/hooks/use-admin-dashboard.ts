@@ -65,7 +65,7 @@ export function useAdminDashboard() {
   }, [fetchOverview]);
 
   // Companies CRUD
-  const createCompany = async (input: Omit<Company, "id" | "createdAt">) => {
+  const createCompany = async (input: Omit<Company, "id" | "createdAt" | "registrationKey"> & { registrationKey?: string | null }) => {
     const res = await fetch(`/api/admin/companies`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

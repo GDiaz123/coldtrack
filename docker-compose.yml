@@ -1,33 +1,43 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: coldtrack-postgres
     environment:
-      POSTGRES_USER: coldtrack
-      POSTGRES_PASSWORD: coldtrack_secret
-      POSTGRES_DB: coldtrack
+      POSTGRES_USER: ${POSTGRES_USER:-coldtrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coldtrack_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-coldtrack}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U coldtrack -d coldtrack"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coldtrack} -d ${POSTGRES_DB:-coldtrack}"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
     restart: always
 
   app:
+    container_name: coldtrack-app
     build: .
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://coldtrack:coldtrack_secret@db:5432/coldtrack
+      DATABASE_DISABLED: "false"
+      DB_HOST: db
+      DB_PORT: 5432
+      DATABASE_URL: postgresql://${POSTGRES_USER:-coldtrack}:${POSTGRES_PASSWORD:-coldtrack_secret}@db:5432/${POSTGRES_DB:-coldtrack}?schema=public
+      RDS_SSL: "false"
+      RDS_IAM_AUTH: "false"
       JWT_SECRET: ${JWT_SECRET:-coldtrack-change-in-production}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      SENSOR_PROVIDER: simulated
+      NEXT_PUBLIC_DEFAULT_COMPANY_ID: ${NEXT_PUBLIC_DEFAULT_COMPANY_ID:-empresa-a}
+      SENSOR_PROVIDER: ${SENSOR_PROVIDER:-simulated}
       RUN_DEMO_SEED: ${RUN_DEMO_SEED:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       db:
         condition: service_healthy

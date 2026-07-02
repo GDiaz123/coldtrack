@@ -1,0 +1,51 @@
+services:
+  db-next:
+    image: postgres:16-alpine
+    container_name: coldtrack-next-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-coldtrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coldtrack_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-coldtrack}
+    ports:
+      - "${POSTGRES_PORT_NEXT:-55432}:5432"
+    volumes:
+      - postgres_next_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coldtrack} -d ${POSTGRES_DB:-coldtrack}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  app-next:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coldtrack-next-app
+    restart: unless-stopped
+    depends_on:
+      db-next:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_URL: http://localhost:${APP_PORT_NEXT:-3100}
+      NEXT_PUBLIC_DEFAULT_COMPANY_ID: ${NEXT_PUBLIC_DEFAULT_COMPANY_ID:-empresa-a}
+      JWT_SECRET: ${JWT_SECRET:-coldtrack-local-dev-secret-change-before-production}
+      DATABASE_DISABLED: "false"
+      DB_HOST: db-next
+      DB_PORT: 5432
+      DATABASE_URL: postgresql://${POSTGRES_USER:-coldtrack}:${POSTGRES_PASSWORD:-coldtrack_secret}@db-next:5432/${POSTGRES_DB:-coldtrack}?schema=public
+      DB_HEALTH_TIMEOUT_MS: ${DB_HEALTH_TIMEOUT_MS:-4000}
+      SENSOR_PROVIDER: ${SENSOR_PROVIDER:-simulated}
+      RUN_DEMO_SEED: ${RUN_DEMO_SEED:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${APP_PORT_NEXT:-3100}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  postgres_next_data:

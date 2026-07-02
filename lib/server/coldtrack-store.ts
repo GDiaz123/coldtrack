@@ -52,12 +52,12 @@ export interface ColdtrackRepository {
   getCompanyDashboard(companyId: string): Promise<CompanyDashboard | null>;
   listCompanies(): Promise<Company[]>;
   getCompany(companyId: string): Promise<Company | null>;
-  createCompany(input: Omit<Company, "id" | "createdAt">): Promise<Company>;
+  createCompany(input: Omit<Company, "id" | "createdAt" | "registrationKey"> & { registrationKey?: string | null }): Promise<Company>;
   updateCompany(companyId: string, patch: Partial<Omit<Company, "id" | "createdAt">>): Promise<Company | null>;
   deleteCompany(companyId: string): Promise<boolean>;
   listUsers(companyId?: string): Promise<AppUser[]>;
   getUser(userId: string): Promise<AppUser | null>;
-  createUser(input: Omit<AppUser, "id">): Promise<AppUser>;
+  createUser(input: Omit<AppUser, "id"> & { password?: string }): Promise<AppUser>;
   updateUser(userId: string, patch: Partial<Omit<AppUser, "id">>): Promise<AppUser | null>;
   deleteUser(userId: string): Promise<boolean>;
   listSensors(companyId: string): Promise<Sensor[]>;
@@ -74,9 +74,8 @@ export interface ColdtrackRepository {
 /* ------------------------------------------------------------------ */
 
 const plans: Plan[] = [
-  { code: "STARTER", name: "Starter", maxSensors: 12, priceMonthlyUsd: 99 },
-  { code: "PRO", name: "Professional", maxSensors: 60, priceMonthlyUsd: 299 },
-  { code: "ENTERPRISE", name: "Enterprise", maxSensors: 300, priceMonthlyUsd: 899 },
+  { code: "STARTER", name: "Basico", maxSensors: 8, priceMonthlyUsd: 1200, currency: "PEN", priceLabel: "S/ 1200" },
+  { code: "PRO", name: "Premium", maxSensors: 40, priceMonthlyUsd: 1600, currency: "USD", priceLabel: "$1600" },
 ];
 
 const companies: Company[] = [
@@ -87,6 +86,8 @@ const companies: Company[] = [
     status: "ACTIVE",
     plan: "PRO",
     contactEmail: "operaciones@santaaurora.pe",
+    alertPhone: "+51900111222",
+    registrationKey: "AURORA-2026",
     createdAt: "2026-02-12T14:20:00.000Z",
   },
   {
@@ -96,6 +97,8 @@ const companies: Company[] = [
     status: "TRIAL",
     plan: "STARTER",
     contactEmail: "calidad@bionorte.pe",
+    alertPhone: "+51900333444",
+    registrationKey: "BIONORTE-2026",
     createdAt: "2026-05-04T09:15:00.000Z",
   },
   {
@@ -103,8 +106,10 @@ const companies: Company[] = [
     name: "Banco de Sangre VitalRed",
     ruc: "20490244718",
     status: "ACTIVE",
-    plan: "ENTERPRISE",
+    plan: "PRO",
     contactEmail: "monitoreo@vitalred.pe",
+    alertPhone: "+51900555666",
+    registrationKey: "VITALRED-2026",
     createdAt: "2025-11-18T12:40:00.000Z",
   },
 ];
@@ -165,6 +170,16 @@ function countStatuses(sensorList: SensorWithReading[]) {
 
 function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function generateRegistrationKey(name: string) {
+  const prefix = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 6)
+    .toUpperCase() || "EMPRESA";
+  return `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -372,10 +387,12 @@ class MemoryColdtrackRepository implements ColdtrackRepository {
     return this.state.companies.find((c) => c.id === companyId) ?? null;
   }
 
-  async createCompany(input: Omit<Company, "id" | "createdAt">) {
+  async createCompany(input: Omit<Company, "id" | "createdAt" | "registrationKey"> & { registrationKey?: string | null }) {
     const company: Company = {
       ...input,
       id: generateId("company"),
+      alertPhone: input.alertPhone ?? null,
+      registrationKey: input.registrationKey ?? generateRegistrationKey(input.name),
       createdAt: new Date().toISOString(),
     };
     this.state.companies.push(company);
@@ -416,7 +433,7 @@ class MemoryColdtrackRepository implements ColdtrackRepository {
     return this.state.users.find((u) => u.id === userId) ?? null;
   }
 
-  async createUser(input: Omit<AppUser, "id">) {
+  async createUser(input: Omit<AppUser, "id"> & { password?: string }) {
     const user: AppUser = { ...input, id: generateId("u") };
     this.state.users.push(user);
     return user;
@@ -449,6 +466,9 @@ class MemoryColdtrackRepository implements ColdtrackRepository {
   async createSensor(input: Omit<Sensor, "id" | "registeredAt" | "active">) {
     const company = this.state.companies.find((c) => c.id === input.companyId);
     if (!company) throw new Error("COMPANY_NOT_FOUND");
+    const plan = this.state.plans.find((p) => p.code === company.plan) ?? this.state.plans[0];
+    const activeSensors = this.state.sensors.filter((s) => s.companyId === input.companyId && s.active).length;
+    if (activeSensors >= plan.maxSensors) throw new Error("PLAN_SENSOR_LIMIT_REACHED");
 
     const s: Sensor = {
       ...input,

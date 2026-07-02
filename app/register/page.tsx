@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 export default function RegisterPage() {
+  const [mode, setMode] = useState<"company" | "worker">("company");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -23,6 +24,7 @@ export default function RegisterPage() {
     companyName: "",
     ruc: "",
     contactEmail: "",
+    registrationKey: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, mode }),
       });
 
       const data = await res.json();
@@ -80,6 +82,27 @@ export default function RegisterPage() {
           <p className="text-sm text-gray-600 mb-5 leading-relaxed">
             Registre su organización y comience a monitorear la cadena de frío.
           </p>
+
+          <div className="mb-5 grid grid-cols-2 rounded-xl border border-gray-200 bg-gray-50 p-1">
+            <button
+              type="button"
+              onClick={() => setMode("company")}
+              className={`rounded-lg py-2 text-xs font-extrabold transition ${
+                mode === "company" ? "bg-white text-sky-700 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              Empresa nueva
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("worker")}
+              className={`rounded-lg py-2 text-xs font-extrabold transition ${
+                mode === "worker" ? "bg-white text-sky-700 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              Trabajador
+            </button>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 text-sm bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
@@ -143,6 +166,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {mode === "company" ? (
             <div className="border-t border-gray-100 pt-4">
               <p className="text-xs font-extrabold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1.5">
                 <Building2 className="size-3.5" />
@@ -199,6 +223,28 @@ export default function RegisterPage() {
                 </div>
               </div>
             </div>
+            ) : (
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-1.5">
+                  <KeyRound className="size-3.5" />
+                  Validacion de empresa
+                </p>
+                <label className="block text-xs font-extrabold uppercase tracking-wide text-gray-500 mb-1.5">
+                  Key de registro
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-3 size-4 text-gray-400" />
+                  <input
+                    type="text"
+                    required
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3 py-3 text-sm text-gray-900 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 outline-none transition uppercase"
+                    placeholder="EMPRESA-2026"
+                    value={form.registrationKey}
+                    onChange={(e) => update("registrationKey", e.target.value.toUpperCase())}
+                  />
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -211,7 +257,7 @@ export default function RegisterPage() {
                   Registrando...
                 </>
               ) : (
-                "Crear cuenta"
+                mode === "company" ? "Crear cuenta" : "Unirme a la empresa"
               )}
             </button>
           </form>

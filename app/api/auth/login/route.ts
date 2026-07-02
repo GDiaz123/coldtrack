@@ -20,16 +20,24 @@ export async function POST(request: NextRequest) {
     let user;
     const databaseConfigured = isDatabaseConfigured();
     const databaseAvailable = databaseConfigured ? await isDatabaseAvailable() : false;
+    const shouldUseDatabase = databaseConfigured && databaseAvailable;
 
     if (databaseConfigured && !databaseAvailable) {
-      return Response.json({ error: "DATABASE_UNAVAILABLE" }, { status: 503 });
+      logger.warn("login_database_unavailable_memory_fallback", {
+        environment: process.env.NODE_ENV ?? "development",
+      });
     }
 
-    if (process.env.NODE_ENV === "production" && !databaseConfigured && !isDatabaseDisabled()) {
+    if (
+      process.env.NODE_ENV === "production" &&
+      !shouldUseDatabase &&
+      !isDatabaseDisabled() &&
+      process.env.ALLOW_MEMORY_FALLBACK !== "true"
+    ) {
       return Response.json({ error: "DATABASE_REQUIRED" }, { status: 503 });
     }
 
-    if (databaseConfigured) {
+    if (shouldUseDatabase) {
       const dbUser = await findUserByEmail(normalizedEmail);
       if (!dbUser) {
         return Response.json({ error: "INVALID_CREDENTIALS" }, { status: 401 });

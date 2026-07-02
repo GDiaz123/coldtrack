@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   Download,
+  CreditCard,
   Filter,
   FlaskConical,
   Gauge,
@@ -37,7 +38,7 @@ import {
 } from "lucide-react";
 import { useCompanyDashboard } from "@/lib/hooks/use-company-dashboard";
 import { useAuth } from "@/lib/hooks/use-auth";
-import type { AppUser } from "@/lib/domain/coldtrack";
+import type { AppUser, Company } from "@/lib/domain/coldtrack";
 
 type Status = "Normal" | "Vigilancia" | "Critico";
 type View =
@@ -115,6 +116,17 @@ function formatTemp(value: number) {
   return `${value.toFixed(1)} °C`;
 }
 
+function getPlanInfo(plan: string) {
+  if (plan === "PRO") {
+    return { name: "Premium", price: "$1600/mes", maxSensors: 40, exportLabel: "Excel completo" };
+  }
+  return { name: "Basico", price: "S/ 1200/mes", maxSensors: 8, exportLabel: "CSV operativo" };
+}
+
+function csvCell(value: string | number | null | undefined) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
 export function ColdtrackDashboard({ companyId }: { companyId: string }) {
   const { user: authUser, loading: authLoading, logout } = useAuth(undefined, companyId);
   const { data, loading, error, registerSensor, deleteSensor } = useCompanyDashboard(companyId);
@@ -134,6 +146,7 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
     maxTemp: 8,
   });
   const [sensorActionError, setSensorActionError] = useState<string | null>(null);
+  const lastAlertIdRef = useRef<string | null>(null);
 
   // Fetch company users when view is "Usuarios"
   useEffect(() => {
@@ -205,6 +218,35 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
     });
   }, [data]);
 
+  useEffect(() => {
+    const latestCritical = data?.events?.find((event) => event.severity === "CRITICAL" || event.severity === "OFFLINE");
+    if (!latestCritical || latestCritical.id === lastAlertIdRef.current) return;
+    const isFirstSnapshot = lastAlertIdRef.current === null;
+    lastAlertIdRef.current = latestCritical.id;
+    if (isFirstSnapshot || document.visibilityState !== "visible") return;
+
+    try {
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const context = new AudioContextClass();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      oscillator.frequency.setValueAtTime(660, context.currentTime + 0.18);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.45);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.5);
+      window.setTimeout(() => void context.close(), 700);
+    } catch {
+      // Some browsers block audio until the user interacts with the page.
+    }
+  }, [data?.events]);
+
   // Map backend stats to dashboard stats structure
   const stats: Stats = useMemo(() => {
     if (!data?.stats) {
@@ -254,7 +296,43 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
   const criticalEquipment = equipment.filter((item) => item.status !== "Normal");
   const title = view === "Analitica IA" ? "Riesgo preventivo y tendencias" : view;
   const companyName = data.company.name;
-  const planName = data.company.plan;
+  const planInfo = getPlanInfo(data.company.plan);
+  const planName = planInfo.name;
+  const sensorLimitReached = equipment.length >= planInfo.maxSensors;
+
+  const handleExport = () => {
+    const rows = [
+      ["Empresa", companyName],
+      ["Plan", `${planInfo.name} (${planInfo.price})`],
+      ["Actualizado", new Date(data.updatedAt).toLocaleString("es-PE")],
+      [],
+      ["Sensor", "Ubicacion", "Producto", "Temperatura", "Humedad", "Bateria", "Senal", "Estado", "Rango"],
+      ...equipment.map((item) => [
+        item.name,
+        item.site,
+        item.category,
+        item.temp,
+        item.humidity,
+        item.battery,
+        item.signal,
+        item.status,
+        `${item.min} a ${item.max} C`,
+      ]),
+      [],
+      ["Evento", "Hora", "Detalle", "Nivel"],
+      ...events.map((event) => [event.title, event.time, event.detail, event.tone]),
+    ];
+    const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `coldtrack-${companyId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const handleRegisterSensor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -343,6 +421,7 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
             companyName={companyName}
             updatedAt={new Date(data.updatedAt).toLocaleTimeString("es-PE")}
             onLogout={logout}
+            onExport={handleExport}
           />
 
           {/* Mobile navigation */}
@@ -380,10 +459,15 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
               <SensorsManagementView
                 equipment={equipment}
                 onAddClick={() => {
+                  if (sensorLimitReached) {
+                    setSensorActionError("El plan actual alcanzo el limite de sensores permitidos.");
+                    return;
+                  }
                   setSensorActionError(null);
                   setShowAddSensor(true);
                 }}
                 onDeleteClick={handleDeleteSensor}
+                planInfo={planInfo}
               />
             )}
             {view === "Alertas" && (
@@ -394,8 +478,8 @@ export function ColdtrackDashboard({ companyId }: { companyId: string }) {
               <AnalyticsView equipment={equipment} stats={stats} />
             )}
             {view === "Auditorias" && <AuditsView />}
-            {view === "Usuarios" && <UsersView users={companyUsers} loading={usersLoading} />}
-            {view === "Ajustes" && <SettingsView />}
+            {view === "Usuarios" && <UsersView users={companyUsers} loading={usersLoading} company={data.company} authUser={authUser} />}
+            {view === "Ajustes" && <SettingsView company={data.company} planInfo={planInfo} />}
           </div>
         </section>
       </div>
@@ -561,12 +645,14 @@ function Header({
   companyName,
   updatedAt,
   onLogout,
+  onExport,
 }: {
   title: string;
   view: View;
   companyName: string;
   updatedAt: string;
   onLogout: () => void;
+  onExport: () => void;
 }) {
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur xl:px-8">
@@ -599,7 +685,10 @@ function Header({
             <Filter className="size-4" />
             Filtros
           </button>
-          <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-xs font-semibold text-white hover:bg-sky-700">
+          <button
+            onClick={onExport}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-xs font-semibold text-white hover:bg-sky-700"
+          >
             <Download className="size-4" />
             Exportar
           </button>
@@ -689,11 +778,14 @@ function SensorsManagementView({
   equipment,
   onAddClick,
   onDeleteClick,
+  planInfo,
 }: {
   equipment: Equipment[];
   onAddClick: () => void;
   onDeleteClick: (id: string) => void;
+  planInfo: ReturnType<typeof getPlanInfo>;
 }) {
+  const limitReached = equipment.length >= planInfo.maxSensors;
   return (
     <div className="grid gap-4 px-4 py-5 xl:px-8">
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
@@ -706,7 +798,9 @@ function SensorsManagementView({
           </div>
           <button
             onClick={onAddClick}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-xs font-semibold text-white hover:bg-sky-700 transition"
+            disabled={limitReached}
+            title={limitReached ? "Limite de sensores alcanzado para el plan actual" : "Registrar sensor"}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-xs font-semibold text-white hover:bg-sky-700 disabled:bg-slate-200 disabled:text-slate-500 transition"
           >
             <Plus className="size-4" />
             Registrar Sensor
@@ -930,7 +1024,17 @@ function AuditsView() {
   );
 }
 
-function UsersView({ users, loading }: { users: AppUser[]; loading: boolean }) {
+function UsersView({
+  users,
+  loading,
+  company,
+  authUser,
+}: {
+  users: AppUser[];
+  loading: boolean;
+  company: Company;
+  authUser: AppUser | null;
+}) {
   if (loading) {
     return (
       <div className="p-12 text-center text-slate-500">
@@ -969,6 +1073,12 @@ function UsersView({ users, loading }: { users: AppUser[]; loading: boolean }) {
       </section>
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="font-bold text-slate-950">Roles configurados</h3>
+        {authUser?.role === "ADMIN" ? (
+          <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3">
+            <p className="text-[10px] font-bold uppercase text-sky-700">Key para trabajadores</p>
+            <p className="mt-1 font-mono text-sm font-bold text-slate-900">{company.registrationKey ?? "No configurada"}</p>
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-3">
           {["Administrador", "Supervisor", "Tecnico", "Auditor"].map((role) => (
             <div key={role} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
@@ -982,9 +1092,37 @@ function UsersView({ users, loading }: { users: AppUser[]; loading: boolean }) {
   );
 }
 
-function SettingsView() {
+function SettingsView({
+  company,
+  planInfo,
+}: {
+  company: Company;
+  planInfo: ReturnType<typeof getPlanInfo>;
+}) {
   return (
     <div className="grid gap-4 px-4 py-5 xl:grid-cols-3 xl:px-8">
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-950">Plan activo</h3>
+          <CreditCard className="size-4 text-slate-400" />
+        </div>
+        <p className="mt-2 text-2xl font-extrabold text-slate-950">{planInfo.name}</p>
+        <p className="text-sm font-semibold text-slate-500">{planInfo.price}</p>
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          Limite operativo: {planInfo.maxSensors} sensores registrados. Exportacion: {planInfo.exportLabel}.
+        </p>
+      </section>
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-950">Alertas</h3>
+          <Bell className="size-4 text-slate-400" />
+        </div>
+        <p className="mt-2 text-sm text-slate-600">Telefono registrado</p>
+        <p className="mt-1 font-mono text-sm font-bold text-slate-950">{company.alertPhone || "Sin telefono configurado"}</p>
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          Por ahora las alertas criticas usan sonido local con la pagina abierta. El telefono queda listo para integrar SMS o WhatsApp.
+        </p>
+      </section>
       {[
         ["Rangos termicos", "Define limites por producto, equipo y sede."],
         ["Escalamiento", "Configura tiempos, responsables y canales."],

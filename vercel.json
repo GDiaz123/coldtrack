@@ -1,0 +1,26 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm ci",
+  "env": {
+    "DATABASE_DISABLED": "true",
+    "SENSOR_PROVIDER": "simulated",
+    "RUN_DEMO_SEED": "false",
+    "LOG_LEVEL": "info"
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)/stream",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-transform"
+        },
+        {
+          "key": "X-Accel-Buffering",
+          "value": "no"
+        }
+      ]
+    }
+  ]
+}

@@ -54,6 +54,8 @@ export function AdminDashboard() {
     status: "ACTIVE" as CompanyStatus,
     plan: "STARTER" as PlanCode,
     contactEmail: "",
+    alertPhone: "",
+    registrationKey: "",
   });
 
   const [showUserModal, setShowUserModal] = useState(false);
@@ -100,6 +102,11 @@ export function AdminDashboard() {
   }
 
   const { stats, companies, users: userList, events, plans } = data;
+  const billablePlans = plans.filter((plan) => plan.code === "STARTER" || plan.code === "PRO");
+  const planLabels: Record<string, string> = {
+    STARTER: "Basico - S/ 1200",
+    PRO: "Premium - $1600",
+  };
 
   const handleOpenCompanyModal = (company: Company | null = null) => {
     setActionError(null);
@@ -111,6 +118,8 @@ export function AdminDashboard() {
         status: company.status,
         plan: company.plan,
         contactEmail: company.contactEmail,
+        alertPhone: company.alertPhone ?? "",
+        registrationKey: company.registrationKey ?? "",
       });
     } else {
       setSelectedCompany(null);
@@ -120,6 +129,8 @@ export function AdminDashboard() {
         status: "ACTIVE",
         plan: "STARTER",
         contactEmail: "",
+        alertPhone: "",
+        registrationKey: "",
       });
     }
     setShowCompanyModal(true);
@@ -728,8 +739,8 @@ export function AdminDashboard() {
 
           {/* Planes view */}
           {activeView === "Planes" && (
-            <div className="grid gap-6 md:grid-cols-3">
-              {plans.map((p) => (
+            <div className="grid gap-6 md:grid-cols-2">
+              {billablePlans.map((p) => (
                 <div
                   key={p.code}
                   className="bg-white border border-gray-200 rounded-2xl p-6 relative flex flex-col justify-between hover:border-gray-300 hover:shadow-xl transition duration-300"
@@ -741,10 +752,12 @@ export function AdminDashboard() {
                       </span>
                       <CreditCard className="size-5 text-gray-500" />
                     </div>
-                    <h4 className="text-xl font-bold text-white">{p.name}</h4>
+                    <h4 className="text-xl font-bold text-gray-900">{p.name}</h4>
                     <p className="mt-1 text-gray-400 text-xs">Monitoreo de cadena de frío inteligente</p>
-                    <div className="mt-4 flex items-baseline text-white">
-                      <span className="text-4xl font-extrabold tracking-tight">${p.priceMonthlyUsd}</span>
+                    <div className="mt-4 flex items-baseline text-gray-900">
+                      <span className="text-4xl font-extrabold tracking-tight">
+                        {p.priceLabel ?? planLabels[p.code] ?? `$${p.priceMonthlyUsd}`}
+                      </span>
                       <span className="ml-1 text-xs text-gray-400 font-semibold">/mes</span>
                     </div>
 
@@ -936,9 +949,8 @@ export function AdminDashboard() {
                     value={companyForm.plan}
                     onChange={(e) => setCompanyForm({ ...companyForm, plan: e.target.value as PlanCode })}
                   >
-                    <option value="STARTER">Starter ($99/mes)</option>
-                    <option value="PRO">Professional ($299/mes)</option>
-                    <option value="ENTERPRISE">Enterprise ($899/mes)</option>
+                    <option value="STARTER">Basico - S/ 1200/mes</option>
+                    <option value="PRO">Premium - $1600/mes</option>
                   </select>
                 </div>
                 <div>
@@ -954,6 +966,33 @@ export function AdminDashboard() {
                     <option value="TRIAL">Prueba (Trial)</option>
                     <option value="SUSPENDED">Suspendido</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                    Telefono de Alertas
+                  </label>
+                  <input
+                    type="tel"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 focus:border-gray-300 outline-none"
+                    placeholder="+51900111222"
+                    value={companyForm.alertPhone}
+                    onChange={(e) => setCompanyForm({ ...companyForm, alertPhone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                    Key de Registro
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 focus:border-gray-300 outline-none uppercase"
+                    placeholder="EMPRESA-2026"
+                    value={companyForm.registrationKey}
+                    onChange={(e) => setCompanyForm({ ...companyForm, registrationKey: e.target.value.toUpperCase() })}
+                  />
                 </div>
               </div>
 

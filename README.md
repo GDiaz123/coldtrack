@@ -1,194 +1,490 @@
-# COLDTRACK AI+ — Plataforma de Control de Cadena de Frío
+# COLDTRACK AI+
 
-Este proyecto es una plataforma profesional para el monitoreo en tiempo real de la cadena de frío, diseñada para garantizar el almacenamiento seguro de vacunas, reactivos, hemoderivados y muestras biológicas en establecimientos de salud.
+COLDTRACK AI+ is a SaaS platform for intelligent cold-chain monitoring in healthcare organizations. It includes two main panels:
 
----
+- **Super Administrator Panel**: manages companies, users, plans, global status, and platform statistics.
+- **Company Panel**: operational dashboard for each client company. It only reads and streams data for its own company.
 
-## Arquitectura del Proyecto
-
-El sistema está estructurado bajo una arquitectura de capas desacopladas, lo que permite un mantenimiento limpio y la futura transición a servicios e integraciones físicas de hardware sin romper el sistema de presentación:
-
-```mermaid
-graph TD
-    A[Frontend React Client Components] -->|Fetch / SSE| B[API Route Handlers app/api]
-    B -->|Interfaz ColdtrackRepository| C[Server Layer lib/server]
-    C -->|SimulatedSensorProvider| D[ISensorProvider Interface]
-    D -.->|Futuro: Hardware real| E[MQTTSensorProvider / AWS IoT Core]
-    C -->|Tipos Puros| F[Domain Layer lib/domain]
-```
-
-1. **Domain Layer (`lib/domain/`)**: Tipos puros que definen los modelos de datos de la aplicación (`Company`, `Sensor`, `AppUser`, `SensorReading`, `SystemEvent`). No contiene efectos secundarios ni dependencias externas.
-2. **Server Layer (`lib/server/`)**: Capa lógica del backend que implementa el patrón Repository (`MemoryColdtrackRepository`). Alberga la gestión del estado in-memory y el sensor provider desacoplado.
-3. **API Routes (`app/api/`)**: Controladores de ruta de Next.js que exponen las operaciones HTTP (CRUD de empresas, usuarios y sensores) y los flujos Server-Sent Events (SSE) para actualizaciones en tiempo real.
-4. **Frontend Layer**: Vistas modulares desarrolladas con React Server/Client Components y estilizadas con Tailwind CSS.
+The project is designed as a production-oriented Next.js application with backend route handlers, repository abstractions, a realistic simulated sensor provider, Prisma/PostgreSQL readiness, Docker support, and deployment preparation.
 
 ---
 
-## Estructura de Carpetas
+## Architecture
+
+The application follows a layered architecture:
 
 ```text
-├── app/
-│   ├── admin/                 # Rutas de administración general
-│   ├── api/                   # API Route Handlers (Auth, Admin, Company)
-│   ├── dashboard/             # Panel de cliente por compañía (/dashboard/[companyId])
-│   ├── globals.css            # Estilos globales y Tailwind CSS
-│   ├── layout.tsx             # Layout raíz del proyecto
-│   └── page.tsx               # Página de inicio y login
-├── components/
-│   ├── admin/                 # Componentes visuales de administración
-│   ├── ui/                    # Componentes base (shadcn/button)
-│   └── coldtrack-dashboard.tsx# Dashboard principal de cliente
-├── lib/
-│   ├── domain/                # Modelos y lógica pura de negocio
-│   ├── hooks/                 # Custom hooks (Auth, Admin, Company)
-│   └── server/                # Repositorio in-memory y lógica del backend
-├── Dockerfile                 # Dockerfile de producción multi-stage
-├── docker-compose.yml         # Despliegue local y de prueba
-└── package.json               # Dependencias del proyecto
+Frontend React components
+  -> hooks in lib/hooks
+  -> Next.js Route Handlers in app/api
+  -> server services/repositories in lib/server
+  -> domain types and business rules in lib/domain
+  -> sensor provider abstraction
+```
+
+Main backend abstractions:
+
+- `ColdtrackRepository`: persistence boundary for companies, users, sensors, readings, events, and dashboards.
+- `ISensorProvider`: sensor telemetry boundary.
+- `SimulatedSensorProvider`: current realistic simulation provider.
+- Future providers can implement the same interface for ESP32, MQTT, AWS IoT Core, Arduino, or industrial gateways.
+
+The frontend does not own important business logic. It consumes snapshots and SSE updates from the API.
+
+---
+
+## Folder Structure
+
+```text
+app/
+  admin/                         Super admin UI
+  dashboard/[companyId]/          Company dashboard route
+  api/
+    admin/                        Super admin API
+    auth/                         Login/logout/session API
+    company/[companyId]/          Tenant-isolated company API
+    health/                       Health check
+components/
+  admin/                          Admin panel components
+  coldtrack-dashboard.tsx         Company operational dashboard
+  ui/                             Shared UI components
+lib/
+  domain/                         Pure domain types and rules
+  hooks/                          Client hooks for auth, admin, company data
+  server/                         Backend services, repository factory, logging
+prisma/
+  schema.prisma                   PostgreSQL schema
+Dockerfile
+docker-compose.yml
+vercel.json
+.env.example
 ```
 
 ---
 
-## Documentación del proyecto
+## Local Development With Local Database
 
-- **[Informe de Proyecto Final](docs/INFORME-PROYECTO-FINAL.md)** — Documento completo para entregar al curso
-- **[Configuración AWS RDS + IAM + S3 + ECS](docs/AWS-RDS-ECS-CONFIG.md)** — Conectar tu cluster RDS y bucket S3
-- **[Despliegue simple EC2 + RDS + S3 + IAM](docs/AWS-EC2-RDS-S3-IAM.md)** — Ruta directa para subir la app a EC2 con Docker
+Use this mode when you want your database to stay local on your machine.
 
----
+1. Install dependencies:
 
-## Variables de Entorno
+```bash
+npm install
+```
 
-Copie el archivo `.env.example` como `.env` y configure las siguientes variables:
+2. Copy environment file:
+
+```bash
+cp .env.example .env
+```
+
+3. In `.env`, use:
 
 ```ini
-# Configuración del servidor
-APP_NAME="COLDTRACK AI+"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXT_PUBLIC_DEFAULT_COMPANY_ID="empresa-a"
-LOG_LEVEL="info"
-
-# Autenticación
-JWT_SECRET="cambiar-por-secreto-seguro"
-
-# Base de datos PostgreSQL (requerido para registro)
-DATABASE_URL="postgresql://coldtrack:coldtrack_secret@localhost:5432/coldtrack"
-
-# Proveedor de sensores
+DATABASE_DISABLED=false
+DATABASE_URL="postgresql://coldtrack:coldtrack_secret@localhost:5432/coldtrack?schema=public"
+JWT_SECRET="change-this-to-a-long-random-secret"
 SENSOR_PROVIDER="simulated"
 ```
 
----
+4. Start local PostgreSQL:
 
-## Cómo Ejecutar el Proyecto
+```bash
+docker compose up db -d
+```
 
-### Localmente (Desarrollo)
-1. Instale las dependencias:
-   ```bash
-   npm install
-   ```
-2. Copie `.env.example` a `.env` y configure `DATABASE_URL`.
-3. Inicie PostgreSQL (con Docker):
-   ```bash
-   docker compose up db -d
-   ```
-4. Aplique el esquema y datos demo:
-   ```bash
-   npm run db:push
-   npm run db:seed
-   ```
-5. Ejecute el servidor de desarrollo:
-   ```bash
-   npm run dev
-   ```
-6. Abra [http://localhost:3000](http://localhost:3000). Use `/register` para crear una cuenta nueva.
+5. Apply schema and seed demo users/plans:
 
-### Con Docker (producción local)
-1. Construya la imagen y levante los contenedores:
-   ```bash
-   docker compose up --build
-   ```
-2. La aplicación estará disponible en [http://localhost:3000](http://localhost:3000). El contenedor aplica migraciones y seed automáticamente al iniciar.
+```bash
+npm run db:push
+npm run db:seed
+```
+
+6. Run the app:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
 
 ---
 
-## Explicación del Backend y del Frontend
+## Docker
 
-### Backend
-* **Rutas RESTful**: La API provee endpoints limpios bajo `/api/admin/*` y `/api/company/[companyId]/*` para la creación y manipulación de entidades.
-* **Server-Sent Events (SSE)**: En lugar de WebSockets (que requieren un servidor WebSocket dedicado), la aplicación aprovecha las capacidades nativas de streaming de Next.js a través de SSE (`/api/company/[companyId]/stream` y `/api/admin/stream`) para transmitir lecturas y eventos cada 3 segundos.
+Run the app and PostgreSQL locally:
 
-### Frontend
-* **Autenticación Basada en Roles**: Los accesos a las rutas se controlan en el cliente mediante el hook personalizado `useAuth()`. Si el usuario inicia sesión como `SUPER_ADMIN`, se le redirige y valida para `/admin`. Si es un operador de empresa, se le restringe al `/dashboard/[companyId]` correspondiente a su pertenencia organizacional.
-* **Hooks de Suscripción**: `useCompanyDashboard` y `useAdminDashboard` se encargan de gestionar el ciclo de vida de la conexión SSE y realizar el fetch inicial, actualizando el estado de forma transparente sin refrescar la página.
+```bash
+docker compose up --build
+```
+
+The app will be available at:
+
+```text
+http://localhost:3000
+```
+
+Health check:
+
+```text
+http://localhost:3000/api/health
+```
+
+If your Docker installation uses the legacy CLI, run:
+
+```bash
+docker-compose up --build
+```
+
+Default local database created by Docker Compose:
+
+```ini
+POSTGRES_USER=coldtrack
+POSTGRES_PASSWORD=coldtrack_secret
+POSTGRES_DB=coldtrack
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql://coldtrack:coldtrack_secret@localhost:5432/coldtrack?schema=public
+```
+
+The `app` container connects to PostgreSQL through the internal Docker hostname `db`, while local commands such as `npm run dev`, `npm run db:push`, and `npm run db:seed` use `localhost:5432`.
 
 ---
 
-## Motor de Simulación Realista
+## Docker Snapshot Without Touching Current Containers
 
-Para evitar comportamientos artificiales, el `SimulatedSensorProvider` implementa un modelo de simulación física con las siguientes características:
-* **Inercia Térmica**: La temperatura no oscila bruscamente; evoluciona de forma incremental hacia la media del umbral térmico del sensor.
-* **Deriva (Drift) Gradual**: Se simula la pérdida o ganancia lenta de frío/calor a través del tiempo mediante un algoritmo de desplazamiento suave.
-* **Pérdida Ocasional de Conexión**: Un sensor tiene un 1.5% de probabilidad por tick de entrar en modo `OFFLINE` simulando interferencia temporal, recuperándose de forma autónoma después de algunos segundos.
-* **Descarga de Batería**: Disminuye de forma realista en función de la telemetría enviada.
-* **Alertas**: Se generan eventos solo ante desviaciones sostenidas y reales de los parámetros.
+If you already have the original demo containers running, use the isolated compose file instead of the default one. It uses different container names, project name, ports, and volume:
+
+```powershell
+docker compose -p coldtrack-next -f docker-compose.next.yml up --build
+```
+
+Open:
+
+```text
+http://localhost:3100
+```
+
+This creates only:
+
+```text
+coldtrack-next-app
+coldtrack-next-postgres
+postgres_next_data
+```
+
+Your existing containers such as `coldtrack-app` and `coldtrack-postgres` are not renamed, removed, or reused.
+
+To stop only this snapshot:
+
+```powershell
+docker compose -p coldtrack-next -f docker-compose.next.yml down
+```
+
+To reset only this snapshot database:
+
+```powershell
+docker compose -p coldtrack-next -f docker-compose.next.yml down -v
+```
 
 ---
 
-## Procedimientos de Administración
+## Plans And Limits
 
-### Cómo agregar nuevos sensores
-Cada empresa puede registrar sensores en caliente desde el dashboard operativo:
-1. Inicie sesión con un usuario de la empresa (ej. `valeria@santaaurora.pe`).
-2. Diríjase a la sección **"Gestión de Sensores"**.
-3. Haga clic en **"Registrar Sensor"** y complete el código identificador (ej: `RF-09`), nombre, ubicación, tipo de producto y rango límite.
-4. El sensor aparecerá automáticamente en el listado y el motor de telemetría comenzará a simularlo al instante.
+The commercial plans are:
 
-### Cómo agregar nuevas empresas y usuarios
-Desde la cuenta de administrador general:
-1. Inicie sesión en la plataforma con el correo `admin@coldtrack.ai` y contraseña `password123`.
-2. Vaya a la sección **"Empresas"** y haga clic en **"Registrar Empresa"**.
-3. Vaya a la sección **"Usuarios"** para crear accesos asignándoles la empresa correspondiente y su rol respectivo.
+```text
+Basico   S/ 1200/mes   up to 8 sensors
+Premium  $1600/mes     up to 40 sensors
+```
+
+Sensor limits are enforced in the backend when creating sensors and reflected in the company dashboard.
 
 ---
 
-# Preparación para AWS
+## Worker Registration
 
-El proyecto ha sido diseñado con un desacoplamiento de capas para facilitar su migración directa a una arquitectura serverless o contenerizada en AWS.
+Company administrators can share their company registration key with workers. A worker uses the `Trabajador` option on `/register`, enters the key, and is created as a company `SUPERVISOR`.
 
-### 1. Servicios de AWS Recomendados
-* **AWS ECS (Fargate)**: Para hospedar la aplicación Next.js de forma contenerizada sin gestionar servidores EC2 (utilizando el `Dockerfile` provisto).
-* **Amazon RDS (PostgreSQL)**: Para reemplazar el repositorio in-memory por una base de datos relacional persistente, utilizando el ORM **Prisma** ya integrado en el proyecto.
-* **AWS IoT Core**: Para la ingesta y transmisión de telemetría de sensores reales (ESP32, Arduino, gateways industriales) a través del protocolo MQTT.
-* **Amazon S3**: Para el almacenamiento y distribución de reportes de auditoría exportados y assets estáticos.
-* **Amazon CloudFront**: CDN para acelerar la carga del frontend y asegurar el tráfico por HTTPS.
-* **AWS IAM**: Para restringir privilegios y asegurar que los servicios (como ECS) solo accedan a los recursos permitidos.
+The registration key and alert phone are stored on the company record. The current phone field prepares the app for SMS/WhatsApp integration later; today, critical alerts trigger a local sound while the dashboard page is open.
 
-### 2. Cómo Desplegar el Backend y Frontend (EC2 / ECS)
-Aunque se puede utilizar una instancia EC2 clásica configurando Docker y Nginx, la recomendación de producción es utilizar **AWS ECS Fargate**:
-1. Cree un repositorio en **Amazon ECR** (Elastic Container Registry) y suba la imagen construida con el `Dockerfile` del proyecto.
-2. Defina una **Task Definition** en ECS especificando las variables de entorno de producción (`DATABASE_URL`, `SENSOR_PROVIDER="real"`, `JWT_SECRET`, etc.).
-3. Configure un **Application Load Balancer (ALB)** delante de ECS para gestionar la terminación SSL/TLS y redirigir el tráfico del puerto 80/443 al puerto 3000 de los contenedores.
-4. Si utiliza **EC2 Tradicional**: Levante el proyecto mediante `docker-compose up -d` y configure un proxy inverso en Nginx para redireccionar el puerto 80 al puerto 3000, asegurando la directiva `proxy_set_header Connection "keep-alive"` para que el stream de SSE no se desconecte.
+---
 
-### 3. Conexión de AWS IoT Core en el Futuro
-Para conectar hardware real (sensores físicos transmitiendo por MQTT):
-1. Registre las "Cosas" (Things) en la consola de **AWS IoT Core** y genere los certificados X.509 necesarios para cada dispositivo físico.
-2. Cree una regla de AWS IoT Core para retransmitir los mensajes entrantes del topic MQTT (ej: `coldtrack/telemetry`) a una cola de **Amazon SQS** o invocar una **AWS Lambda**.
-3. **Modificación de Código**: Reemplace el `SimulatedSensorProvider` en el backend. Cree una nueva clase `AWSIoTSensorProvider` que implemente la interfaz `ISensorProvider` (ubicada en `lib/server/coldtrack-store.ts`) para leer los datos más recientes desde la cola SQS o base de datos en lugar de generarlos en memoria:
-   ```typescript
-   export class AWSIoTSensorProvider implements ISensorProvider {
-     async tick(companyId?: string) {
-       // Consultar telemetría real desde la base de datos o AWS SQS
-     }
-     getReading(sensor: Sensor): SensorReading {
-       // Retornar lectura en base a los últimos datos reales del dispositivo
-     }
-   }
-   ```
-4. Actualice la variable de entorno `SENSOR_PROVIDER="aws"` e inicialice esta clase en el factory del repositorio.
+## Vercel Deployment With Local Database
 
-### 4. Buenas Prácticas para Producción en AWS
-* **Secretos Seguros**: Utilice **AWS Secrets Manager** o **Systems Manager Parameter Store** para inyectar claves de API, secretos JWT y credenciales de bases de datos. Nunca almacene secretos en el archivo `.env` del repositorio git.
-* **VPC Privada**: La base de datos de RDS y las tareas de ECS del backend deben residir en subredes privadas. Solo el balanceador de carga y la distribución de CloudFront deben tener exposición pública.
-* **Keep-Alive en Balanceadores de Carga**: Los balances de carga de AWS tienen un timeout de inactividad de 60 segundos por defecto. Para asegurar que las conexiones SSE sigan abiertas, verifique que el intervalo de keep-alive en el stream (`/api/company/[companyId]/stream`) envíe pings periódicos inferiores a ese límite (el proyecto ya envía pings cada 15 segundos).
+Important: **Vercel cannot connect to a database running on your laptop as `localhost`**. In Vercel, `localhost` points to Vercel's runtime, not your machine.
+
+For that reason, the project supports two modes:
+
+### Local Mode
+
+Use PostgreSQL on your machine:
+
+```ini
+DATABASE_DISABLED=false
+DATABASE_URL="postgresql://coldtrack:coldtrack_secret@localhost:5432/coldtrack?schema=public"
+```
+
+### Vercel Demo Mode Without Remote Database
+
+Use backend memory mode and simulated telemetry:
+
+```ini
+DATABASE_DISABLED=true
+SENSOR_PROVIDER="simulated"
+RUN_DEMO_SEED=false
+```
+
+This is the correct mode if you want to deploy the app to Vercel while keeping your database local for development only.
+
+Data created in Vercel memory mode is not persistent between runtime restarts. That is expected.
+
+### Steps To Deploy To Vercel
+
+1. Push the repository to GitHub.
+2. Import the repository in Vercel.
+3. Vercel will detect Next.js automatically.
+4. `vercel.json` already configures non-secret demo-mode defaults:
+
+```json
+{
+  "DATABASE_DISABLED": "true",
+  "SENSOR_PROVIDER": "simulated",
+  "RUN_DEMO_SEED": "false"
+}
+```
+
+5. In Vercel Project Settings > Environment Variables, add:
+
+```ini
+JWT_SECRET="use-a-long-random-secret"
+NEXT_PUBLIC_APP_URL="https://your-project.vercel.app"
+NEXT_PUBLIC_DEFAULT_COMPANY_ID="empresa-a"
+```
+
+6. Do **not** set `DATABASE_URL` in Vercel while your database is only local.
+7. Deploy.
+8. Validate:
+
+```text
+https://your-project.vercel.app/api/health
+```
+
+### Demo Credentials In Memory Mode
+
+```text
+admin@coldtrack.ai       / password123
+valeria@santaaurora.pe   / password123
+andrea@bionorte.pe       / password123
+luis@vitalred.pe         / password123
+```
+
+---
+
+## When You Want Persistence On Vercel
+
+Use a database reachable by Vercel, for example:
+
+- Vercel Postgres
+- Neon
+- Supabase
+- Railway PostgreSQL
+- AWS RDS with network access configured correctly
+
+Then set in Vercel:
+
+```ini
+DATABASE_DISABLED=false
+DATABASE_URL="postgresql://..."
+```
+
+Run migrations/seed against that remote database:
+
+```bash
+npm run db:push
+npm run db:seed
+```
+
+No frontend changes are required. `getColdtrackRepository()` selects PostgreSQL when the database is configured and available; otherwise it falls back to memory mode only when database usage is disabled or unavailable in development/demo mode.
+
+---
+
+## Backend
+
+The backend is implemented with Next.js Route Handlers:
+
+- `/api/auth/*`: login, logout, current user, registration.
+- `/api/admin/*`: super admin data, company/user management, SSE stream.
+- `/api/company/[companyId]/*`: tenant-isolated dashboard, sensors, events, reports, SSE stream.
+- `/api/health`: runtime health check.
+
+Tenant isolation is enforced by route-level auth checks and repository queries scoped by `companyId`.
+
+The company panel never needs data from another company.
+
+---
+
+## Frontend
+
+The frontend uses:
+
+- React Client Components for interactive dashboards.
+- `useAuth()` for session and role validation.
+- `useCompanyDashboard()` for company snapshot + SSE updates.
+- `useAdminDashboard()` for super admin snapshot + SSE updates.
+
+The UI updates sensor readings without refreshing the full page.
+
+---
+
+## Simulation
+
+The current simulation is backend-side and uses registered sensors only. Sensors are not hardcoded in the frontend.
+
+Simulation behavior:
+
+- gradual temperature movement toward a thermal target
+- small drift over time
+- stable humidity with minor variation
+- slow battery drain
+- occasional signal loss
+- automatic reconnection
+- critical events only when state changes or a relevant condition appears
+- smooth trend arrays for graphs
+
+The current implementation is `SimulatedSensorProvider`. Future real providers should implement `ISensorProvider`.
+
+---
+
+## Add New Sensors
+
+From the company dashboard:
+
+1. Login as a company user.
+2. Open **Gestion de Sensores**.
+3. Register code, name, location, product type, min temperature, and max temperature.
+4. The backend creates the sensor for that company only.
+5. The simulation starts using that registered sensor.
+
+API:
+
+```http
+POST /api/company/[companyId]/sensors
+```
+
+---
+
+## Add New Companies
+
+From the super admin panel:
+
+1. Login as `admin@coldtrack.ai`.
+2. Open the companies section.
+3. Register company data and plan.
+4. Create users assigned to that company.
+
+API:
+
+```http
+POST /api/admin/companies
+POST /api/admin/users
+```
+
+---
+
+# Preparacion Para AWS
+
+AWS is not implemented as the active production target yet. The project is prepared so it can be moved later.
+
+Recommended AWS services:
+
+- **EC2 or ECS Fargate** for the Next.js app.
+- **Amazon RDS PostgreSQL** for persistent data.
+- **Amazon S3** for reports and exported audit files.
+- **AWS IAM** for least-privilege access.
+- **AWS IoT Core** for future MQTT telemetry from ESP32, Arduino, or industrial gateways.
+- **CloudWatch** for logs and metrics.
+- **Application Load Balancer** if deploying containers.
+
+## Deploy Backend On EC2 Later
+
+1. Provision EC2 with Docker.
+2. Copy the repository or pull from Git.
+3. Configure production `.env`:
+
+```ini
+NODE_ENV=production
+DATABASE_DISABLED=false
+DATABASE_URL="postgresql://..."
+JWT_SECRET="..."
+SENSOR_PROVIDER="simulated"
+```
+
+4. Run:
+
+```bash
+docker compose up --build -d
+```
+
+5. Put Nginx or an Application Load Balancer in front of port `3000`.
+6. Keep SSE connections alive by preserving streaming headers and using an idle timeout greater than the SSE ping interval.
+
+## Deploy Frontend
+
+The frontend is part of the same Next.js app. On EC2/ECS, the same container serves frontend and backend route handlers.
+
+On Vercel, Vercel hosts both the frontend and backend route handlers.
+
+## Use Amazon S3 Later
+
+The project already has AWS-related server modules prepared. For production:
+
+1. Create an S3 bucket for reports.
+2. Set `AWS_REGION` and `AWS_S3_BUCKET`.
+3. Prefer IAM roles instead of access keys.
+4. Store report files in S3 and save metadata in PostgreSQL.
+
+## Integrate IAM
+
+Use least privilege:
+
+- App runtime can write/read only the report bucket.
+- App runtime can connect only to the target RDS database.
+- IoT ingestion roles should publish only to required topics/queues.
+
+## Connect AWS IoT Core Later
+
+Future path:
+
+1. Register devices as AWS IoT Things.
+2. Use MQTT topics like `coldtrack/{companyId}/{sensorCode}/telemetry`.
+3. Route telemetry through AWS IoT Rules to Lambda, SQS, or Timestream/PostgreSQL.
+4. Implement a new provider, for example `AWSIoTSensorProvider`, that satisfies `ISensorProvider`.
+5. Set:
+
+```ini
+SENSOR_PROVIDER="aws"
+```
+
+The frontend should not need changes.
+
+## Files To Modify For AWS Deployment
+
+- `.env` or cloud environment variables
+- `lib/server/coldtrack-store.ts` provider factory
+- `lib/server/aws-config.ts`
+- `lib/server/s3-reports.ts`
+- infrastructure files you add later, such as Terraform, CDK, or ECS task definitions
+
+## Production Best Practices
+
+- Never commit real secrets.
+- Rotate any key that was ever committed or shared.
+- Use HTTPS everywhere.
+- Use managed PostgreSQL with backups.
+- Add observability: structured logs, request IDs, and CloudWatch alerts.
+- Run migrations through CI/CD.
+- Protect admin routes with strong authentication and MFA when moving beyond demo mode.

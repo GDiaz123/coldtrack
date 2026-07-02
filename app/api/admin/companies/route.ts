@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, ruc, status, plan, contactEmail } = body;
+    const { name, ruc, status, plan, contactEmail, alertPhone, registrationKey } = body;
 
     if (!name || !ruc || !contactEmail) {
       return Response.json({ error: "MISSING_FIELDS" }, { status: 400 });
@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
       status: status ?? "TRIAL",
       plan: plan ?? "STARTER",
       contactEmail,
+      alertPhone: alertPhone ?? null,
+      registrationKey: registrationKey ? String(registrationKey).trim().toUpperCase() : undefined,
     });
 
     logger.info("company_created", { companyId: company.id, name });
